@@ -207,6 +207,12 @@ class Waitpress_Plugin {
             $html .= '<p>' . sprintf(esc_html__('Status: %s', 'waitpress'), esc_html($status_label)) . '</p>';
             $html .= '<p>' . sprintf(esc_html__('Last updated: %s', 'waitpress'), esc_html(mysql2date(get_option('date_format'), $applicant->updated_at))) . '</p>';
 
+            if ($applicant->status === 'removed') {
+                $html .= '<p>' . esc_html__('You have been removed from the waitlist by an administrator.', 'waitpress') . '</p>';
+                $html .= '</div>';
+                return $html;
+            }
+
             if ($applicant->status === 'waiting') {
                 $position = $this->get_waitlist_position($applicant);
                 $html .= '<p>' . sprintf(esc_html__('Current waitlist position: %d', 'waitpress'), $position) . '</p>';
@@ -230,12 +236,14 @@ class Waitpress_Plugin {
                 }
             }
 
-            $html .= '<form method="post">';
-            $html .= wp_nonce_field('waitpress_leave', '_waitpress_nonce', true, false);
-            $html .= '<input type="hidden" name="waitpress_action" value="leave">';
-            $html .= '<input type="hidden" name="waitpress_token" value="' . esc_attr($token) . '">';
-            $html .= '<p><button type="submit">' . esc_html__('Leave Waitlist', 'waitpress') . '</button></p>';
-            $html .= '</form>';
+            if ($applicant->status !== 'left_waitlist') {
+                $html .= '<form method="post">';
+                $html .= wp_nonce_field('waitpress_leave', '_waitpress_nonce', true, false);
+                $html .= '<input type="hidden" name="waitpress_action" value="leave">';
+                $html .= '<input type="hidden" name="waitpress_token" value="' . esc_attr($token) . '">';
+                $html .= '<p><button type="submit">' . esc_html__('Leave Waitlist', 'waitpress') . '</button></p>';
+                $html .= '</form>';
+            }
             $html .= '</div>';
 
             return $html;
@@ -288,7 +296,7 @@ class Waitpress_Plugin {
                 echo '<td>' . esc_html($this->format_status_label($applicant->status)) . '</td>';
                 echo '<td>' . esc_html(mysql2date(get_option('date_format'), $applicant->joined_at)) . '</td>';
                 echo '<td>';
-                if ($applicant->status !== 'removed') {
+                if (!in_array($applicant->status, array('removed', 'left_waitlist'), true)) {
                     echo '<form method="post" action="' . esc_url($offer_url) . '">';
                     echo wp_nonce_field('waitpress_remove_applicant', '_waitpress_nonce', true, false);
                     echo '<input type="hidden" name="action" value="waitpress_remove_applicant">';
@@ -395,6 +403,12 @@ class Waitpress_Plugin {
 
         if ($applicant->status === 'removed') {
             $this->set_flash_message(__('Applicant is already removed.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+            exit;
+        }
+
+        if ($applicant->status === 'left_waitlist') {
+            $this->set_flash_message(__('Applicant has already left the waitlist.', 'waitpress'));
             wp_safe_redirect(admin_url('admin.php?page=waitpress'));
             exit;
         }
@@ -642,19 +656,29 @@ class Waitpress_Plugin {
             return;
         }
 
+        if ($applicant->status === 'removed') {
+            $this->set_flash_message(__('You have already been removed from the waitlist by an administrator.', 'waitpress'));
+            return;
+        }
+
+        if ($applicant->status === 'left_waitlist') {
+            $this->set_flash_message(__('You have already left the waitlist.', 'waitpress'));
+            return;
+        }
+
         $this->update_applicant($applicant->id, array(
-            'status' => 'removed',
+            'status' => 'left_waitlist',
             'removed_at' => current_time('mysql'),
             'updated_at' => current_time('mysql'),
         ));
 
-        $this->send_email($applicant->email, __('Waitlist removal confirmation', 'waitpress'), __('You have been removed from the waitlist.', 'waitpress'));
+        $this->send_email($applicant->email, __('Waitlist departure confirmation', 'waitpress'), __('You have left the waitlist.', 'waitpress'));
         $this->send_email(
             $this->get_notification_recipients('notification_leave_recipients'),
-            __('Waitlist removal', 'waitpress'),
+            __('Waitlist departure', 'waitpress'),
             sprintf(__('Applicant %s left the waitlist.', 'waitpress'), $applicant->name)
         );
-        $this->set_flash_message(__('You have been removed from the waitlist.', 'waitpress'));
+        $this->set_flash_message(__('You have left the waitlist.', 'waitpress'));
         wp_safe_redirect($this->get_current_url());
         exit;
     }
@@ -685,8 +709,8 @@ class Waitpress_Plugin {
 
         if ($decision === 'declined') {
             $this->update_offer($offer->id, array('status' => 'declined', 'updated_at' => current_time('mysql')));
-            $this->update_applicant($applicant->id, array('status' => 'removed', 'removed_at' => current_time('mysql'), 'updated_at' => current_time('mysql')));
-            $this->send_email($applicant->email, __('Offer declined', 'waitpress'), __('You have declined the offer and have been removed from the waitlist.', 'waitpress'));
+            $this->update_applicant($applicant->id, array('status' => 'left_waitlist', 'removed_at' => current_time('mysql'), 'updated_at' => current_time('mysql')));
+            $this->send_email($applicant->email, __('Offer declined', 'waitpress'), __('You have declined the offer and left the waitlist.', 'waitpress'));
             $this->offer_next_applicant($offer->plot_id);
         }
 
@@ -1125,6 +1149,7 @@ class Waitpress_Plugin {
             'offered' => __('Offered', 'waitpress'),
             'accepted' => __('Accepted', 'waitpress'),
             'removed' => __('Removed', 'waitpress'),
+            'left_waitlist' => __('Left waitlist', 'waitpress'),
             'assigned' => __('Assigned', 'waitpress'),
             'declined' => __('Declined', 'waitpress'),
             'expired' => __('Expired', 'waitpress'),
