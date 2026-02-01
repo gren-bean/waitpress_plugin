@@ -129,6 +129,7 @@ class Waitpress_Plugin {
 
     public function render_apply_form() {
         $messages = $this->get_flash_messages();
+        $hide_form = $this->get_flash_flag('hide_apply_form');
         $html = '';
 
         if ($messages) {
@@ -137,14 +138,25 @@ class Waitpress_Plugin {
             }
         }
 
+        if ($hide_form) {
+            return $html;
+        }
+
         $html .= '<form class="waitpress-apply-form" method="post">';
         $html .= wp_nonce_field('waitpress_apply', '_waitpress_nonce', true, false);
         $html .= '<input type="hidden" name="waitpress_action" value="apply">';
-        $html .= '<p><label>' . esc_html__('Name', 'waitpress') . '<br><input type="text" name="waitpress_name" required></label></p>';
+        $html .= '<p><label>' . esc_html__('First name', 'waitpress') . '<br><input type="text" name="waitpress_first_name" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Last name', 'waitpress') . '<br><input type="text" name="waitpress_last_name" required></label></p>';
         $html .= '<p><label>' . esc_html__('Email', 'waitpress') . '<br><input type="email" name="waitpress_email" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Phone', 'waitpress') . '<br><input type="text" name="waitpress_phone" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Address / Eligibility', 'waitpress') . '<br><input type="text" name="waitpress_address" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Comments', 'waitpress') . '<br><textarea name="waitpress_comments"></textarea></label></p>';
+        $html .= '<p><label>' . esc_html__('Phone', 'waitpress') . '<br><input type="tel" name="waitpress_phone" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Street address', 'waitpress') . '<br><input type="text" name="waitpress_address" required></label></p>';
+        $html .= '<p><label>' . esc_html__('City', 'waitpress') . '<br><input type="text" name="waitpress_city" required></label></p>';
+        $html .= '<p><label>' . esc_html__('State', 'waitpress') . '<br><input type="text" name="waitpress_state" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Zip code', 'waitpress') . '<br><input type="text" name="waitpress_zip" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Plot number (if assigned)', 'waitpress') . '<br><input type="text" name="waitpress_plot_number"></label></p>';
+        $html .= '<p><label>' . esc_html__('Emergency contact name', 'waitpress') . '<br><input type="text" name="waitpress_emergency_name"></label></p>';
+        $html .= '<p><label>' . esc_html__('Emergency contact phone', 'waitpress') . '<br><input type="tel" name="waitpress_emergency_phone"></label></p>';
+        $html .= '<p><label>' . esc_html__('Additional notes', 'waitpress') . '<br><textarea name="waitpress_comments"></textarea></label></p>';
         $html .= '<p><button type="submit">' . esc_html__('Join Waitlist', 'waitpress') . '</button></p>';
         $html .= '</form>';
 
@@ -401,15 +413,38 @@ class Waitpress_Plugin {
             return;
         }
 
-        $name = sanitize_text_field(wp_unslash($_POST['waitpress_name'] ?? ''));
+        $first_name = sanitize_text_field(wp_unslash($_POST['waitpress_first_name'] ?? ''));
+        $last_name = sanitize_text_field(wp_unslash($_POST['waitpress_last_name'] ?? ''));
         $email = sanitize_email(wp_unslash($_POST['waitpress_email'] ?? ''));
         $phone = sanitize_text_field(wp_unslash($_POST['waitpress_phone'] ?? ''));
         $address = sanitize_text_field(wp_unslash($_POST['waitpress_address'] ?? ''));
+        $city = sanitize_text_field(wp_unslash($_POST['waitpress_city'] ?? ''));
+        $state = sanitize_text_field(wp_unslash($_POST['waitpress_state'] ?? ''));
+        $zip = sanitize_text_field(wp_unslash($_POST['waitpress_zip'] ?? ''));
+        $plot_number = sanitize_text_field(wp_unslash($_POST['waitpress_plot_number'] ?? ''));
+        $emergency_name = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_name'] ?? ''));
+        $emergency_phone = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_phone'] ?? ''));
         $comments = sanitize_textarea_field(wp_unslash($_POST['waitpress_comments'] ?? ''));
 
-        if (!$name || !$email) {
-            $this->set_flash_message(__('Please provide your name and email.', 'waitpress'));
+        if (!$first_name || !$last_name || !$email || !$phone || !$address || !$city || !$state || !$zip) {
+            $this->set_flash_message(__('Please complete all required fields.', 'waitpress'));
             return;
+        }
+
+        $name = trim($first_name . ' ' . $last_name);
+        $address_lines = array_filter(array($address, trim($city . ', ' . $state . ' ' . $zip)));
+        $address = implode("\n", $address_lines);
+
+        $extra_notes = array();
+        if ($plot_number) {
+            $extra_notes[] = sprintf('Plot number: %s', $plot_number);
+        }
+        if ($emergency_name || $emergency_phone) {
+            $emergency_details = trim($emergency_name . ' ' . $emergency_phone);
+            $extra_notes[] = sprintf('Emergency contact: %s', $emergency_details);
+        }
+        if ($extra_notes) {
+            $comments = trim(implode("\n", $extra_notes) . "\n" . $comments);
         }
 
         $token = $this->generate_token();
@@ -442,6 +477,7 @@ class Waitpress_Plugin {
         $this->send_email(get_option('admin_email'), __('New waitlist application', 'waitpress'), sprintf(__('New applicant: %s', 'waitpress'), $name));
 
         $this->set_flash_message(__('You are on the list! Check your email for your status link.', 'waitpress'));
+        $this->set_flash_flag('hide_apply_form');
         wp_safe_redirect($this->get_current_url());
         exit;
     }
@@ -874,6 +910,27 @@ class Waitpress_Plugin {
         unset($_SESSION['waitpress_messages']);
 
         return $messages;
+    }
+
+    private function set_flash_flag($flag) {
+        if (!session_id()) {
+            session_start();
+        }
+
+        $_SESSION['waitpress_flags'][$flag] = true;
+    }
+
+    private function get_flash_flag($flag) {
+        if (!session_id()) {
+            session_start();
+        }
+
+        $flags = $_SESSION['waitpress_flags'] ?? array();
+        $value = !empty($flags[$flag]);
+        unset($flags[$flag]);
+        $_SESSION['waitpress_flags'] = $flags;
+
+        return $value;
     }
 
     private function get_status_page_url() {
