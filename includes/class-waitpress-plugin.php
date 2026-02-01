@@ -125,6 +125,30 @@ class Waitpress_Plugin {
             'waitpress-settings',
             'waitpress_general'
         );
+
+        add_settings_field(
+            'notification_join_recipients',
+            __('Additional recipients: waitlist joins', 'waitpress'),
+            array($this, 'render_join_recipients_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'notification_leave_recipients',
+            __('Additional recipients: waitlist leaves', 'waitpress'),
+            array($this, 'render_leave_recipients_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'notification_accept_recipients',
+            __('Additional recipients: offer accepted', 'waitpress'),
+            array($this, 'render_accept_recipients_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
     }
 
     public function render_apply_form() {
@@ -352,6 +376,9 @@ class Waitpress_Plugin {
         $settings['monthly_email_time'] = isset($settings['monthly_email_time']) ? sanitize_text_field($settings['monthly_email_time']) : '09:00';
         $settings['template_applicant_confirmation'] = isset($settings['template_applicant_confirmation']) ? sanitize_textarea_field($settings['template_applicant_confirmation']) : '';
         $settings['template_monthly_status'] = isset($settings['template_monthly_status']) ? sanitize_textarea_field($settings['template_monthly_status']) : '';
+        $settings['notification_join_recipients'] = isset($settings['notification_join_recipients']) ? sanitize_textarea_field($settings['notification_join_recipients']) : '';
+        $settings['notification_leave_recipients'] = isset($settings['notification_leave_recipients']) ? sanitize_textarea_field($settings['notification_leave_recipients']) : '';
+        $settings['notification_accept_recipients'] = isset($settings['notification_accept_recipients']) ? sanitize_textarea_field($settings['notification_accept_recipients']) : '';
 
         return $settings;
     }
@@ -394,6 +421,28 @@ class Waitpress_Plugin {
             '<textarea name="waitpress_settings[template_monthly_status]" rows="4" cols="50">%s</textarea>',
             esc_textarea($settings['template_monthly_status'])
         );
+    }
+
+    private function render_notification_recipients_field($setting_key) {
+        $settings = $this->get_settings();
+        printf(
+            '<textarea name="waitpress_settings[%1$s]" rows="3" cols="50">%2$s</textarea><p class="description">%3$s</p>',
+            esc_attr($setting_key),
+            esc_textarea($settings[$setting_key]),
+            esc_html__('Enter comma-separated email addresses.', 'waitpress')
+        );
+    }
+
+    public function render_join_recipients_field() {
+        $this->render_notification_recipients_field('notification_join_recipients');
+    }
+
+    public function render_leave_recipients_field() {
+        $this->render_notification_recipients_field('notification_leave_recipients');
+    }
+
+    public function render_accept_recipients_field() {
+        $this->render_notification_recipients_field('notification_accept_recipients');
     }
 
     private function handle_apply_submission() {
@@ -439,7 +488,11 @@ class Waitpress_Plugin {
         );
 
         $this->send_email($email, $subject, $body);
-        $this->send_email(get_option('admin_email'), __('New waitlist application', 'waitpress'), sprintf(__('New applicant: %s', 'waitpress'), $name));
+        $this->send_email(
+            $this->get_notification_recipients('notification_join_recipients'),
+            __('New waitlist application', 'waitpress'),
+            sprintf(__('New applicant: %s', 'waitpress'), $name)
+        );
 
         $this->set_flash_message(__('You are on the list! Check your email for your status link.', 'waitpress'));
         wp_safe_redirect($this->get_current_url());
@@ -500,6 +553,11 @@ class Waitpress_Plugin {
         ));
 
         $this->send_email($applicant->email, __('Waitlist removal confirmation', 'waitpress'), __('You have been removed from the waitlist.', 'waitpress'));
+        $this->send_email(
+            $this->get_notification_recipients('notification_leave_recipients'),
+            __('Waitlist removal', 'waitpress'),
+            sprintf(__('Applicant %s left the waitlist.', 'waitpress'), $applicant->name)
+        );
         $this->set_flash_message(__('You have been removed from the waitlist.', 'waitpress'));
         wp_safe_redirect($this->get_current_url());
         exit;
@@ -522,14 +580,17 @@ class Waitpress_Plugin {
             $this->update_offer($offer->id, array('status' => 'accepted', 'updated_at' => current_time('mysql')));
             $this->update_applicant($applicant->id, array('status' => 'accepted', 'updated_at' => current_time('mysql')));
             $this->send_email($applicant->email, __('Offer accepted', 'waitpress'), __('Thank you for accepting the offer.', 'waitpress'));
-            $this->send_email(get_option('admin_email'), __('Offer accepted', 'waitpress'), sprintf(__('Applicant %s accepted the offer.', 'waitpress'), $applicant->name));
+            $this->send_email(
+                $this->get_notification_recipients('notification_accept_recipients'),
+                __('Offer accepted', 'waitpress'),
+                sprintf(__('Applicant %s accepted the offer.', 'waitpress'), $applicant->name)
+            );
         }
 
         if ($decision === 'declined') {
             $this->update_offer($offer->id, array('status' => 'declined', 'updated_at' => current_time('mysql')));
             $this->update_applicant($applicant->id, array('status' => 'removed', 'removed_at' => current_time('mysql'), 'updated_at' => current_time('mysql')));
             $this->send_email($applicant->email, __('Offer declined', 'waitpress'), __('You have declined the offer and have been removed from the waitlist.', 'waitpress'));
-            $this->send_email(get_option('admin_email'), __('Offer declined', 'waitpress'), sprintf(__('Applicant %s declined the offer.', 'waitpress'), $applicant->name));
             $this->offer_next_applicant($offer->plot_id);
         }
 
@@ -600,6 +661,9 @@ class Waitpress_Plugin {
                 'monthly_email_time' => '09:00',
                 'template_applicant_confirmation' => 'Thanks for joining the waitlist. Your status link is {{status_link}}.',
                 'template_monthly_status' => 'Your current waitlist position is {{position}}. Visit {{status_link}} to review your status.',
+                'notification_join_recipients' => '',
+                'notification_leave_recipients' => '',
+                'notification_accept_recipients' => '',
             ));
         }
     }
@@ -680,7 +744,6 @@ class Waitpress_Plugin {
         );
 
         $this->send_email($next->email, __('Waitlist offer', 'waitpress'), $body);
-        $this->send_email(get_option('admin_email'), __('Offer sent', 'waitpress'), sprintf(__('Offer sent to %s.', 'waitpress'), $next->email));
     }
 
     private function expire_offers() {
@@ -696,7 +759,6 @@ class Waitpress_Plugin {
                 'joined_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql'),
             ));
-            $this->send_email(get_option('admin_email'), __('Offer expired', 'waitpress'), __('An offer expired and the applicant was moved to the bottom of the waitlist.', 'waitpress'));
             $this->offer_next_applicant($offer->plot_id);
         }
     }
@@ -728,6 +790,9 @@ class Waitpress_Plugin {
             'monthly_email_time' => '09:00',
             'template_applicant_confirmation' => '',
             'template_monthly_status' => '',
+            'notification_join_recipients' => '',
+            'notification_leave_recipients' => '',
+            'notification_accept_recipients' => '',
         );
 
         return wp_parse_args(get_option('waitpress_settings', array()), $defaults);
@@ -849,8 +914,30 @@ class Waitpress_Plugin {
     }
 
     private function send_email($to, $subject, $body) {
+        if (empty($to)) {
+            return;
+        }
+
         $headers = array('Content-Type: text/html; charset=UTF-8');
         wp_mail($to, $subject, nl2br($body), $headers);
+    }
+
+    private function get_notification_recipients($setting_key) {
+        $settings = $this->get_settings();
+        $recipients = $this->parse_recipient_list($settings[$setting_key] ?? '');
+
+        $recipients = array_filter(array_unique(array_map('sanitize_email', $recipients)));
+
+        return $recipients;
+    }
+
+    private function parse_recipient_list($value) {
+        $entries = preg_split('/[\s,]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$entries) {
+            return array();
+        }
+
+        return array_values(array_filter($entries));
     }
 
     private function generate_token() {
