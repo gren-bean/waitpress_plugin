@@ -39,10 +39,16 @@ class Waitpress_Plugin {
     }
 
     public function activate() {
-        $this->create_tables();
-        $this->seed_defaults();
-        $this->ensure_pages();
-        $this->schedule_events();
+        $start = microtime(true);
+        $this->log_activation_step('Activation started');
+
+        $this->time_activation_step('create_tables', array($this, 'create_tables'));
+        $this->time_activation_step('seed_defaults', array($this, 'seed_defaults'));
+        $this->time_activation_step('ensure_pages', array($this, 'ensure_pages'));
+        $this->time_activation_step('schedule_events', array($this, 'schedule_events'));
+
+        $elapsed = microtime(true) - $start;
+        $this->log_activation_step(sprintf('Activation completed in %.3f seconds', $elapsed));
     }
 
     public function deactivate() {
@@ -1156,5 +1162,23 @@ class Waitpress_Plugin {
         );
 
         return $labels[$status] ?? $status;
+    }
+
+    private function time_activation_step($label, $callback) {
+        $step_start = microtime(true);
+        $this->log_activation_step(sprintf('%s started', $label));
+
+        call_user_func($callback);
+
+        $elapsed = microtime(true) - $step_start;
+        $this->log_activation_step(sprintf('%s completed in %.3f seconds', $label, $elapsed));
+    }
+
+    private function log_activation_step($message) {
+        if (!defined('WP_DEBUG') || !WP_DEBUG) {
+            return;
+        }
+
+        error_log(sprintf('[waitpress][activation] %s', $message));
     }
 }
