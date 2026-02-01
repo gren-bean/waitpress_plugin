@@ -72,38 +72,6 @@ Example:
 .\scripts\package.ps1 -OutputDir build -ZipName waitpress-plugin.zip
 ```
 
-### Packaging for Windows 11
-Use the PowerShell script below to build a ready-to-install ZIP file for WordPress.
-
-1. Open PowerShell and navigate to the repo root.
-2. Run the packaging script:
-
-```
-.\scripts\package.ps1
-```
-
-If PowerShell blocks script execution, run it with a temporary policy override:
-
-```
-powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
-```
-
-3. The ZIP will be created at:
-
-```
-dist\waitpress.zip
-```
-
-Optional arguments:
-- `-OutputDir` to set a different output directory.
-- `-ZipName` to change the ZIP filename.
-
-Example:
-
-```
-.\scripts\package.ps1 -OutputDir build -ZipName waitpress-plugin.zip
-```
-
 ### Intelephense (WordPress Stubs)
 If you're using PHP Intelephense in VS Code, you can install WordPress stubs locally and point
 Intelephense at them to resolve core WordPress functions (like `register_activation_hook`).
