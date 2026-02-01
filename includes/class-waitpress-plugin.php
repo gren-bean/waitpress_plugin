@@ -32,6 +32,7 @@ class Waitpress_Plugin {
         add_filter('cron_schedules', array($this, 'register_cron_schedules'));
 
         add_action('admin_post_waitpress_offer_next', array($this, 'handle_offer_next'));
+        add_action('admin_post_waitpress_remove_applicant', array($this, 'handle_remove_applicant'));
 
         add_action('waitpress_daily_offer_expiry', array($this, 'run_daily_offer_expiry'));
         add_action('waitpress_monthly_status_email', array($this, 'send_monthly_status_emails'));
@@ -276,6 +277,7 @@ class Waitpress_Plugin {
         echo '<th>' . esc_html__('Email', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Status', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Joined', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Actions', 'waitpress') . '</th>';
         echo '</tr></thead><tbody>';
 
         if ($applicants) {
@@ -285,10 +287,22 @@ class Waitpress_Plugin {
                 echo '<td>' . esc_html($applicant->email) . '</td>';
                 echo '<td>' . esc_html($this->format_status_label($applicant->status)) . '</td>';
                 echo '<td>' . esc_html(mysql2date(get_option('date_format'), $applicant->joined_at)) . '</td>';
+                echo '<td>';
+                if ($applicant->status !== 'removed') {
+                    echo '<form method="post" action="' . esc_url($offer_url) . '">';
+                    echo wp_nonce_field('waitpress_remove_applicant', '_waitpress_nonce', true, false);
+                    echo '<input type="hidden" name="action" value="waitpress_remove_applicant">';
+                    echo '<input type="hidden" name="applicant_id" value="' . esc_attr($applicant->id) . '">';
+                    echo '<button class="button button-secondary" type="submit" onclick="return confirm(\'' . esc_js(__('Remove this applicant from the waitlist?', 'waitpress')) . '\');">' . esc_html__('Remove', 'waitpress') . '</button>';
+                    echo '</form>';
+                } else {
+                    echo '&mdash;';
+                }
+                echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="4">' . esc_html__('No applicants yet.', 'waitpress') . '</td></tr>';
+            echo '<tr><td colspan="5">' . esc_html__('No applicants yet.', 'waitpress') . '</td></tr>';
         }
 
         echo '</tbody></table>';
@@ -358,6 +372,52 @@ class Waitpress_Plugin {
 
         check_admin_referer('waitpress_offer_next', '_waitpress_nonce');
         $this->offer_next_applicant();
+
+        wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+        exit;
+    }
+
+    public function handle_remove_applicant() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'waitpress'));
+        }
+
+        check_admin_referer('waitpress_remove_applicant', '_waitpress_nonce');
+
+        $applicant_id = isset($_POST['applicant_id']) ? (int) $_POST['applicant_id'] : 0;
+        $applicant = $applicant_id ? $this->get_applicant($applicant_id) : null;
+
+        if (!$applicant) {
+            $this->set_flash_message(__('Applicant not found.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+            exit;
+        }
+
+        if ($applicant->status === 'removed') {
+            $this->set_flash_message(__('Applicant is already removed.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+            exit;
+        }
+
+        $this->update_applicant($applicant->id, array(
+            'status' => 'removed',
+            'removed_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql'),
+        ));
+
+        $active_offer = $this->get_active_offer($applicant->id);
+        if ($active_offer) {
+            $this->update_offer($active_offer->id, array('status' => 'declined', 'updated_at' => current_time('mysql')));
+            $this->offer_next_applicant($active_offer->plot_id);
+        }
+
+        $this->send_email($applicant->email, __('Waitlist removal confirmation', 'waitpress'), __('You have been removed from the waitlist.', 'waitpress'));
+        $this->send_email(
+            $this->get_notification_recipients('notification_leave_recipients'),
+            __('Waitlist removal', 'waitpress'),
+            sprintf(__('Applicant %s was removed from the waitlist.', 'waitpress'), $applicant->name)
+        );
+        $this->set_flash_message(__('Applicant removed from the waitlist.', 'waitpress'));
 
         wp_safe_redirect(admin_url('admin.php?page=waitpress'));
         exit;
