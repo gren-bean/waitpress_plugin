@@ -40,6 +40,38 @@ waitpress/
 - The plugin can be zipped and installed via **Plugins → Add New → Upload Plugin**.
 - No webhooks or custom setup are required; settings are configurable in the WordPress admin UI.
 
+### Packaging for Windows 11
+Use the PowerShell script below to build a ready-to-install ZIP file for WordPress.
+
+1. Open PowerShell and navigate to the repo root.
+2. Run the packaging script:
+
+```
+.\scripts\package.ps1
+```
+
+If PowerShell blocks script execution, run it with a temporary policy override:
+
+```
+powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
+```
+
+3. The ZIP will be created at:
+
+```
+dist\waitpress.zip
+```
+
+Optional arguments:
+- `-OutputDir` to set a different output directory.
+- `-ZipName` to change the ZIP filename.
+
+Example:
+
+```
+.\scripts\package.ps1 -OutputDir build -ZipName waitpress-plugin.zip
+```
+
 ## Plugin Structure and Features:
 1. Apply to the Waitlist.
     - Allows for prospective applications to apply to the waitlist
