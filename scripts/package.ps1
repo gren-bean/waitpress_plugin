@@ -1,9 +1,9 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [string]$OutputDir = "dist",
     [string]$ZipName = "waitpress.zip"
 )
+
+$ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $repoRootPath = $repoRoot.Path
