@@ -11,14 +11,16 @@ $outputDirPath = Join-Path $repoRootPath $OutputDir
 $stagingDir = Join-Path $outputDirPath "waitpress"
 $zipPath = Join-Path $outputDirPath $ZipName
 
-$relativeOutputDir = $outputDirPath.Replace($repoRootPath, "").TrimStart("\", "/")
-$outputRootName = $relativeOutputDir.Split("\", "/")[0]
+$relativeOutputDir = $outputDirPath.Replace($repoRootPath, "").TrimStart('\', '/')
+$outputRootName = ($relativeOutputDir -split '[\\/]', 2)[0]
 
 $excludedNames = @(
     ".git",
     ".gitignore",
     "dist",
-    "scripts"
+    "scripts",
+    ".vscode",
+    ".stubs"
 )
 
 if ($outputRootName -and ($excludedNames -notcontains $outputRootName)) {

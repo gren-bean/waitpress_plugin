@@ -72,17 +72,8 @@ Example:
 .\scripts\package.ps1 -OutputDir build -ZipName waitpress-plugin.zip
 ```
 
-### Intelephense (WordPress Stubs)
-If you're using PHP Intelephense in VS Code, you can install WordPress stubs locally and point
-Intelephense at them to resolve core WordPress functions (like `register_activation_hook`).
-
-1. Download the WordPress stubs into this repo:
-   ```bash
-   mkdir -p .stubs
-   git clone https://github.com/php-stubs/wordpress-stubs.git .stubs/wordpress-stubs
-   ```
-2. Reload VS Code to let Intelephense re-index. The project includes a `.vscode/settings.json`
-   pointing to `.stubs/wordpress-stubs`.
+### Intelephense & WordPress Stubs
+If you're using PHP Intelephense (perhaps in VS Code), you can go to settings and add "Wordpress" stubs to give cleaner viewing
 
 ## Plugin Structure and Features:
 1. Apply to the Waitlist.
