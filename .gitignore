@@ -38,6 +38,9 @@ dist/
 # htaccess
 /.htaccess
 
+# Intelephense WordPress stubs
+.stubs/
+
 # All plugins
 #
 # Note: If you wish to whitelist plugins,
