@@ -207,6 +207,12 @@ class Waitpress_Plugin {
             $html .= '<p>' . sprintf(esc_html__('Status: %s', 'waitpress'), esc_html($status_label)) . '</p>';
             $html .= '<p>' . sprintf(esc_html__('Last updated: %s', 'waitpress'), esc_html(mysql2date(get_option('date_format'), $applicant->updated_at))) . '</p>';
 
+            if ($applicant->status === 'removed') {
+                $html .= '<p>' . esc_html__('You have been removed from the waitlist by an administrator.', 'waitpress') . '</p>';
+                $html .= '</div>';
+                return $html;
+            }
+
             if ($applicant->status === 'waiting') {
                 $position = $this->get_waitlist_position($applicant);
                 $html .= '<p>' . sprintf(esc_html__('Current waitlist position: %d', 'waitpress'), $position) . '</p>';
@@ -230,12 +236,14 @@ class Waitpress_Plugin {
                 }
             }
 
-            $html .= '<form method="post">';
-            $html .= wp_nonce_field('waitpress_leave', '_waitpress_nonce', true, false);
-            $html .= '<input type="hidden" name="waitpress_action" value="leave">';
-            $html .= '<input type="hidden" name="waitpress_token" value="' . esc_attr($token) . '">';
-            $html .= '<p><button type="submit">' . esc_html__('Leave Waitlist', 'waitpress') . '</button></p>';
-            $html .= '</form>';
+            if ($applicant->status !== 'left_waitlist') {
+                $html .= '<form method="post">';
+                $html .= wp_nonce_field('waitpress_leave', '_waitpress_nonce', true, false);
+                $html .= '<input type="hidden" name="waitpress_action" value="leave">';
+                $html .= '<input type="hidden" name="waitpress_token" value="' . esc_attr($token) . '">';
+                $html .= '<p><button type="submit">' . esc_html__('Leave Waitlist', 'waitpress') . '</button></p>';
+                $html .= '</form>';
+            }
             $html .= '</div>';
 
             return $html;
@@ -645,6 +653,16 @@ class Waitpress_Plugin {
         $applicant = $this->get_applicant_by_token($token);
         if (!$applicant) {
             $this->set_flash_message(__('Invalid or expired link.', 'waitpress'));
+            return;
+        }
+
+        if ($applicant->status === 'removed') {
+            $this->set_flash_message(__('You have already been removed from the waitlist by an administrator.', 'waitpress'));
+            return;
+        }
+
+        if ($applicant->status === 'left_waitlist') {
+            $this->set_flash_message(__('You have already left the waitlist.', 'waitpress'));
             return;
         }
 
