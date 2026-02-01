@@ -605,7 +605,7 @@ class Waitpress_Plugin {
     }
 
     private function ensure_pages() {
-        $apply_id = $this->ensure_page('waitpress-apply', __('Waitlist Apply', 'waitpress'), '[waitpress_apply_form]');
+        $apply_id = $this->ensure_page('waitpress-apply', __('Apply to the Waitlist', 'waitpress'), '[waitpress_apply_form]');
         $status_id = $this->ensure_page('waitpress-status', __('Waitlist Status', 'waitpress'), '[waitpress_status]');
 
         update_option('waitpress_apply_page_id', $apply_id);
