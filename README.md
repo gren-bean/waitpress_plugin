@@ -2,6 +2,44 @@
 
 **Waitpress is a Wordpress Plugin designed to support a community garden waitlist application**.
 
+## WordPress Hooks Checklist (Required)
+- **Activation/Deactivation**
+  - `register_activation_hook` to create tables, seed defaults, and schedule cron tasks.
+  - `register_deactivation_hook` to clean up scheduled events.
+- **Public UI**
+  - `init` to register shortcodes for the public-facing apply/status pages.
+  - `template_redirect` (optional) for token-based actions (accept/decline/leave waitlist).
+- **Admin UI**
+  - `admin_menu` to register the “Garden Waitlist” menu and sub-pages.
+  - `admin_init` to register settings and sanitize inputs.
+  - `admin_post_*` handlers for admin actions (offer next, update plots, etc.).
+- **Email/Automation**
+  - `cron_schedules` to register a monthly schedule.
+  - Custom cron hooks for daily offer expiry and monthly status emails.
+- **Security**
+  - `wp_nonce_field` and `check_admin_referer`/`check_ajax_referer` for all forms/actions.
+  - `sanitize_*` functions for all user input.
+
+## Minimal Plugin Skeleton (Installable, No Custom Setup)
+```
+waitpress/
+├── admin/
+├── assets/
+├── includes/
+│   └── class-waitpress-plugin.php
+├── public/
+├── templates/
+└── waitpress.php
+```
+
+### Core Files
+- `waitpress.php` boots the plugin and registers core hooks.
+- `includes/class-waitpress-plugin.php` holds activation, shortcodes, admin menus, settings, and cron placeholders.
+
+### Installation Notes
+- The plugin can be zipped and installed via **Plugins → Add New → Upload Plugin**.
+- No webhooks or custom setup are required; settings are configurable in the WordPress admin UI.
+
 ## Plugin Structure and Features:
 1. Apply to the Waitlist.
     - Allows for prospective applications to apply to the waitlist
