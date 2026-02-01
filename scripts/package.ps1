@@ -6,9 +6,13 @@ param(
 )
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$outputDirPath = Join-Path $repoRoot $OutputDir
+$repoRootPath = $repoRoot.Path
+$outputDirPath = Join-Path $repoRootPath $OutputDir
 $stagingDir = Join-Path $outputDirPath "waitpress"
 $zipPath = Join-Path $outputDirPath $ZipName
+
+$relativeOutputDir = $outputDirPath.Replace($repoRootPath, "").TrimStart("\", "/")
+$outputRootName = $relativeOutputDir.Split("\", "/")[0]
 
 $excludedNames = @(
     ".git",
@@ -16,6 +20,10 @@ $excludedNames = @(
     "dist",
     "scripts"
 )
+
+if ($outputRootName -and ($excludedNames -notcontains $outputRootName)) {
+    $excludedNames += $outputRootName
+}
 
 if (!(Test-Path $outputDirPath)) {
     New-Item -ItemType Directory -Path $outputDirPath | Out-Null
