@@ -872,6 +872,7 @@ class Waitpress_Plugin {
                 'template_applicant_confirmation' => 'Thanks for joining the waitlist. Your status link is {{status_link}}.',
                 'template_monthly_status' => 'Your current waitlist position is {{position}}. Visit {{status_link}} to review your status.',
                 'template_status_link' => 'Use this link to view your status: {{status_link}}',
+                'template_offer' => 'You have been offered a plot. Accept: {{accept_link}} Decline: {{decline_link}}',
                 'notification_join_recipients' => '',
                 'notification_leave_recipients' => '',
                 'notification_accept_recipients' => '',
@@ -948,10 +949,18 @@ class Waitpress_Plugin {
             'token' => $token,
         ), home_url('/'));
 
-        $body = sprintf(
-            __('You have been offered a plot. Accept: %s Decline: %s', 'waitpress'),
-            esc_url($accept_url),
-            esc_url($decline_url)
+        $template = $settings['template_offer'];
+        if (!$template) {
+            $template = __('You have been offered a plot. Accept: {{accept_link}} Decline: {{decline_link}}', 'waitpress');
+        }
+
+        $body = $this->interpolate_template(
+            $template,
+            array(
+                'accept_link' => esc_url($accept_url),
+                'decline_link' => esc_url($decline_url),
+                'applicant_name' => $next->name,
+            )
         );
 
         $this->send_email($next->email, __('Waitlist offer', 'waitpress'), $body);
