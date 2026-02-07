@@ -829,6 +829,7 @@ class Waitpress_Plugin {
             $this->get_settings()['template_status_link'],
             array(
                 'status_link' => $status_url,
+                'applicant_name' => $applicant->name,
             )
         );
 
@@ -1092,6 +1093,7 @@ class Waitpress_Plugin {
                 array(
                     'position' => $position,
                     'status_link' => $this->get_status_page_url(),
+                    'applicant_name' => $applicant->name,
                 )
             );
             $this->send_email($applicant->email, __('Waitlist status update', 'waitpress'), $body);
