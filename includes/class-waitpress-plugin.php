@@ -560,6 +560,21 @@ class Waitpress_Plugin {
             return;
         }
 
+        $existing_applicant = $this->get_active_applicant_by_email($email);
+        if ($existing_applicant) {
+            $status_label = $this->format_status_label($existing_applicant->status);
+            $message = sprintf(__('You are already on the waitlist. Current status: %s.', 'waitpress'), $status_label);
+            if ($existing_applicant->status === 'waiting') {
+                $position = $this->get_waitlist_position($existing_applicant);
+                $message = sprintf(__('You are already on the waitlist. Current status: %s. Position: %d.', 'waitpress'), $status_label, $position);
+            }
+
+            $this->set_flash_message($message);
+            $this->set_flash_flag('hide_apply_form');
+            wp_safe_redirect($this->get_current_url());
+            exit;
+        }
+
         $name = trim($first_name . ' ' . $last_name);
         $address_lines = array_filter(array($address, trim($city . ', ' . $state . ' ' . $zip)));
         $address = implode("\n", $address_lines);
@@ -626,7 +641,10 @@ class Waitpress_Plugin {
             return;
         }
 
-        $applicant = $this->get_applicant_by_email($email);
+        $applicant = $this->get_active_applicant_by_email($email);
+        if (!$applicant) {
+            $applicant = $this->get_applicant_by_email($email);
+        }
         if (!$applicant) {
             $this->set_flash_message(__('No applicant found with that email.', 'waitpress'));
             wp_safe_redirect($this->get_current_url());
@@ -967,6 +985,13 @@ class Waitpress_Plugin {
         $table = $this->get_table_name('applicants');
 
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE email = %s ORDER BY joined_at DESC", $email));
+    }
+
+    private function get_active_applicant_by_email($email) {
+        global $wpdb;
+        $table = $this->get_table_name('applicants');
+
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE email = %s AND status IN ('waiting', 'offered') ORDER BY joined_at DESC", $email));
     }
 
     private function get_applicant_by_token($token) {
