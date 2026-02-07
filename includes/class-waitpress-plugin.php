@@ -134,6 +134,86 @@ class Waitpress_Plugin {
         );
 
         add_settings_field(
+            'template_status_link',
+            __('Status link email', 'waitpress'),
+            array($this, 'render_template_status_link_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_offer',
+            __('Offer email', 'waitpress'),
+            array($this, 'render_template_offer_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_offer_accepted',
+            __('Offer accepted email', 'waitpress'),
+            array($this, 'render_template_offer_accepted_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_offer_declined',
+            __('Offer declined email', 'waitpress'),
+            array($this, 'render_template_offer_declined_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_waitlist_departure',
+            __('Waitlist departure email', 'waitpress'),
+            array($this, 'render_template_waitlist_departure_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_waitlist_removal',
+            __('Waitlist removal email', 'waitpress'),
+            array($this, 'render_template_waitlist_removal_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_admin_new_application',
+            __('Admin: new application email', 'waitpress'),
+            array($this, 'render_template_admin_new_application_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_admin_waitlist_departure',
+            __('Admin: waitlist departure email', 'waitpress'),
+            array($this, 'render_template_admin_waitlist_departure_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_admin_waitlist_removal',
+            __('Admin: waitlist removal email', 'waitpress'),
+            array($this, 'render_template_admin_waitlist_removal_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_admin_offer_accepted',
+            __('Admin: offer accepted email', 'waitpress'),
+            array($this, 'render_template_admin_offer_accepted_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
             'notification_join_recipients',
             __('Additional recipients: waitlist joins', 'waitpress'),
             array($this, 'render_join_recipients_field'),
