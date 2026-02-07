@@ -1,0 +1,37 @@
+.waitpress-apply-form .waitpress-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.waitpress-apply-form .waitpress-form-field {
+    margin: 0;
+}
+
+.waitpress-apply-form .waitpress-form-field--full {
+    grid-column: 1 / -1;
+}
+
+.waitpress-apply-form label {
+    display: block;
+    font-weight: 600;
+}
+
+.waitpress-apply-form input[type="text"],
+.waitpress-apply-form input[type="email"],
+.waitpress-apply-form input[type="tel"],
+.waitpress-apply-form textarea {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.waitpress-apply-form textarea {
+    min-height: 120px;
+}
+
+@media (max-width: 640px) {
+    .waitpress-apply-form .waitpress-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
