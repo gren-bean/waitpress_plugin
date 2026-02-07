@@ -562,6 +562,15 @@ class Waitpress_Plugin {
         $settings['template_applicant_confirmation'] = isset($settings['template_applicant_confirmation']) ? sanitize_textarea_field($settings['template_applicant_confirmation']) : '';
         $settings['template_monthly_status'] = isset($settings['template_monthly_status']) ? sanitize_textarea_field($settings['template_monthly_status']) : '';
         $settings['template_status_link'] = isset($settings['template_status_link']) ? sanitize_textarea_field($settings['template_status_link']) : '';
+        $settings['template_offer'] = isset($settings['template_offer']) ? sanitize_textarea_field($settings['template_offer']) : '';
+        $settings['template_offer_accepted'] = isset($settings['template_offer_accepted']) ? sanitize_textarea_field($settings['template_offer_accepted']) : '';
+        $settings['template_offer_declined'] = isset($settings['template_offer_declined']) ? sanitize_textarea_field($settings['template_offer_declined']) : '';
+        $settings['template_waitlist_departure'] = isset($settings['template_waitlist_departure']) ? sanitize_textarea_field($settings['template_waitlist_departure']) : '';
+        $settings['template_waitlist_removal'] = isset($settings['template_waitlist_removal']) ? sanitize_textarea_field($settings['template_waitlist_removal']) : '';
+        $settings['template_admin_new_application'] = isset($settings['template_admin_new_application']) ? sanitize_textarea_field($settings['template_admin_new_application']) : '';
+        $settings['template_admin_waitlist_departure'] = isset($settings['template_admin_waitlist_departure']) ? sanitize_textarea_field($settings['template_admin_waitlist_departure']) : '';
+        $settings['template_admin_waitlist_removal'] = isset($settings['template_admin_waitlist_removal']) ? sanitize_textarea_field($settings['template_admin_waitlist_removal']) : '';
+        $settings['template_admin_offer_accepted'] = isset($settings['template_admin_offer_accepted']) ? sanitize_textarea_field($settings['template_admin_offer_accepted']) : '';
         $settings['notification_join_recipients'] = isset($settings['notification_join_recipients']) ? sanitize_textarea_field($settings['notification_join_recipients']) : '';
         $settings['notification_leave_recipients'] = isset($settings['notification_leave_recipients']) ? sanitize_textarea_field($settings['notification_leave_recipients']) : '';
         $settings['notification_accept_recipients'] = isset($settings['notification_accept_recipients']) ? sanitize_textarea_field($settings['notification_accept_recipients']) : '';
@@ -615,6 +624,53 @@ class Waitpress_Plugin {
             '<textarea name="waitpress_settings[template_status_link]" rows="4" cols="50">%s</textarea>',
             esc_textarea($settings['template_status_link'])
         );
+    }
+
+    private function render_template_field($setting_key, $rows = 4, $cols = 50) {
+        $settings = $this->get_settings();
+        printf(
+            '<textarea name="waitpress_settings[%1$s]" rows="%2$d" cols="%3$d">%4$s</textarea>',
+            esc_attr($setting_key),
+            absint($rows),
+            absint($cols),
+            esc_textarea($settings[$setting_key])
+        );
+    }
+
+    public function render_template_offer_field() {
+        $this->render_template_field('template_offer');
+    }
+
+    public function render_template_offer_accepted_field() {
+        $this->render_template_field('template_offer_accepted');
+    }
+
+    public function render_template_offer_declined_field() {
+        $this->render_template_field('template_offer_declined');
+    }
+
+    public function render_template_waitlist_departure_field() {
+        $this->render_template_field('template_waitlist_departure');
+    }
+
+    public function render_template_waitlist_removal_field() {
+        $this->render_template_field('template_waitlist_removal');
+    }
+
+    public function render_template_admin_new_application_field() {
+        $this->render_template_field('template_admin_new_application');
+    }
+
+    public function render_template_admin_waitlist_departure_field() {
+        $this->render_template_field('template_admin_waitlist_departure');
+    }
+
+    public function render_template_admin_waitlist_removal_field() {
+        $this->render_template_field('template_admin_waitlist_removal');
+    }
+
+    public function render_template_admin_offer_accepted_field() {
+        $this->render_template_field('template_admin_offer_accepted');
     }
 
 
@@ -1050,6 +1106,15 @@ class Waitpress_Plugin {
             'template_applicant_confirmation' => '',
             'template_monthly_status' => '',
             'template_status_link' => '',
+            'template_offer' => '',
+            'template_offer_accepted' => '',
+            'template_offer_declined' => '',
+            'template_waitlist_departure' => '',
+            'template_waitlist_removal' => '',
+            'template_admin_new_application' => '',
+            'template_admin_waitlist_departure' => '',
+            'template_admin_waitlist_removal' => '',
+            'template_admin_offer_accepted' => '',
             'notification_join_recipients' => '',
             'notification_leave_recipients' => '',
             'notification_accept_recipients' => '',
