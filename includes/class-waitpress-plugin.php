@@ -256,18 +256,19 @@ class Waitpress_Plugin {
         $html .= '<form class="waitpress-apply-form" method="post">';
         $html .= wp_nonce_field('waitpress_apply', '_waitpress_nonce', true, false);
         $html .= '<input type="hidden" name="waitpress_action" value="apply">';
-        $html .= '<p><label>' . esc_html__('First name', 'waitpress') . '<br><input type="text" name="waitpress_first_name" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Last name', 'waitpress') . '<br><input type="text" name="waitpress_last_name" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Email', 'waitpress') . '<br><input type="email" name="waitpress_email" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Phone', 'waitpress') . '<br><input type="tel" name="waitpress_phone" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Street address', 'waitpress') . '<br><input type="text" name="waitpress_address" required></label></p>';
-        $html .= '<p><label>' . esc_html__('City', 'waitpress') . '<br><input type="text" name="waitpress_city" required></label></p>';
-        $html .= '<p><label>' . esc_html__('State', 'waitpress') . '<br><input type="text" name="waitpress_state" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Zip code', 'waitpress') . '<br><input type="text" name="waitpress_zip" required></label></p>';
-        $html .= '<p><label>' . esc_html__('Plot number (if assigned)', 'waitpress') . '<br><input type="text" name="waitpress_plot_number"></label></p>';
-        $html .= '<p><label>' . esc_html__('Emergency contact name', 'waitpress') . '<br><input type="text" name="waitpress_emergency_name"></label></p>';
-        $html .= '<p><label>' . esc_html__('Emergency contact phone', 'waitpress') . '<br><input type="tel" name="waitpress_emergency_phone"></label></p>';
-        $html .= '<p><label>' . esc_html__('Additional notes', 'waitpress') . '<br><textarea name="waitpress_comments"></textarea></label></p>';
+        $html .= '<p><label>' . esc_html__('First name (required)', 'waitpress') . '<br><input type="text" name="waitpress_first_name" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Last name (required)', 'waitpress') . '<br><input type="text" name="waitpress_last_name" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Email (required)', 'waitpress') . '<br><input type="email" name="waitpress_email" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Phone (required)', 'waitpress') . '<br><input type="tel" name="waitpress_phone" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Street address (required)', 'waitpress') . '<br><input type="text" name="waitpress_address" required></label></p>';
+        $html .= '<p><label>' . esc_html__('City (required)', 'waitpress') . '<br><input type="text" name="waitpress_city" required></label></p>';
+        $html .= '<p><label>' . esc_html__('State (required)', 'waitpress') . '<br><input type="text" name="waitpress_state" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Zip code (required)', 'waitpress') . '<br><input type="text" name="waitpress_zip" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Garden or Plot Preference (optional)', 'waitpress') . '<br><input type="text" name="waitpress_plot_number"></label></p>';
+        $html .= '<p><label>' . esc_html__('Emergency contact name (required)', 'waitpress') . '<br><input type="text" name="waitpress_emergency_name" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Emergency contact phone (required)', 'waitpress') . '<br><input type="tel" name="waitpress_emergency_phone" required></label></p>';
+        $html .= '<p><label>' . esc_html__('Additional notes (optional)', 'waitpress') . '<br><textarea name="waitpress_comments"></textarea></label></p>';
+        $html .= '<p><label><input type="checkbox" name="waitpress_bylaws_cert" required> ' . esc_html__('I certify I have read and shall abide by the GCGC Bylaws', 'waitpress') . '</label></p>';
         $html .= '<p><button type="submit">' . esc_html__('Join Waitlist', 'waitpress') . '</button></p>';
         $html .= '</form>';
 
@@ -622,6 +623,7 @@ class Waitpress_Plugin {
             return;
         }
 
+        $bylaws_cert = isset($_POST['waitpress_bylaws_cert']);
         $first_name = sanitize_text_field(wp_unslash($_POST['waitpress_first_name'] ?? ''));
         $last_name = sanitize_text_field(wp_unslash($_POST['waitpress_last_name'] ?? ''));
         $email = sanitize_email(wp_unslash($_POST['waitpress_email'] ?? ''));
@@ -634,6 +636,11 @@ class Waitpress_Plugin {
         $emergency_name = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_name'] ?? ''));
         $emergency_phone = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_phone'] ?? ''));
         $comments = sanitize_textarea_field(wp_unslash($_POST['waitpress_comments'] ?? ''));
+
+        if (!$bylaws_cert) {
+            $this->set_flash_message(__('Please certify you have read and will abide by the GCGC Bylaws.', 'waitpress'));
+            return;
+        }
 
         if (!$first_name || !$last_name || !$email || !$phone || !$address || !$city || !$state || !$zip) {
             $this->set_flash_message(__('Please complete all required fields.', 'waitpress'));
