@@ -303,6 +303,13 @@ class Waitpress_Plugin {
             return;
         }
 
+        $view_id = isset($_GET['view_applicant']) ? absint(wp_unslash($_GET['view_applicant'])) : 0;
+        if ($view_id) {
+            $this->render_applicant_detail($view_id);
+            return;
+        }
+
+
         $applicants = $this->get_applicants();
         $offer_url = admin_url('admin-post.php');
 
@@ -316,21 +323,39 @@ class Waitpress_Plugin {
 
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
+        echo '<th>' . esc_html__('#', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Name', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Email', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Status', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Joined', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Last updated', 'waitpress') . '</th>';
         echo '<th>' . esc_html__('Actions', 'waitpress') . '</th>';
         echo '</tr></thead><tbody>';
 
         if ($applicants) {
             foreach ($applicants as $applicant) {
                 echo '<tr>';
+                if ($applicant->status === 'waiting') {
+                    $position = $this->get_waitlist_position($applicant);
+                    echo '<td>' . esc_html($position) . '</td>';
+                } else {
+                    echo '<td>&mdash;</td>';
+                }
+
                 echo '<td>' . esc_html($applicant->name) . '</td>';
                 echo '<td>' . esc_html($applicant->email) . '</td>';
                 echo '<td>' . esc_html($this->format_status_label($applicant->status)) . '</td>';
                 echo '<td>' . esc_html(mysql2date(get_option('date_format'), $applicant->joined_at)) . '</td>';
+                echo '<td>' . esc_html(mysql2date(get_option('date_format'), $applicant->updated_at)) . '</td>';
                 echo '<td>';
+                $view_url = add_query_arg(
+                    array(
+                        'page' => 'waitpress',
+                        'view_applicant' => $applicant->id,
+                    ),
+                    admin_url('admin.php')
+                );
+                echo '<a class="button button-secondary" href="' . esc_url($view_url) . '">' . esc_html__('View', 'waitpress') . '</a> ';
                 if (!in_array($applicant->status, array('removed', 'left_waitlist'), true)) {
                     echo '<form method="post" action="' . esc_url($offer_url) . '">';
                     echo wp_nonce_field('waitpress_remove_applicant', '_waitpress_nonce', true, false);
@@ -338,16 +363,45 @@ class Waitpress_Plugin {
                     echo '<input type="hidden" name="applicant_id" value="' . esc_attr($applicant->id) . '">';
                     echo '<button class="button button-secondary" type="submit" onclick="return confirm(\'' . esc_js(__('Remove this applicant from the waitlist?', 'waitpress')) . '\');">' . esc_html__('Remove', 'waitpress') . '</button>';
                     echo '</form>';
-                } else {
-                    echo '&mdash;';
                 }
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="5">' . esc_html__('No applicants yet.', 'waitpress') . '</td></tr>';
+            echo '<tr><td colspan="7">' . esc_html__('No applicants yet.', 'waitpress') . '</td></tr>';
         }
 
+        echo '</tbody></table>';
+        echo '</div>';
+    }
+
+    public function render_applicant_detail($id) {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $applicant = $this->get_applicant($id);
+        $back_url = admin_url('admin.php?page=waitpress');
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__('Applicant Details', 'waitpress') . '</h1>';
+        echo '<p><a class="button" href="' . esc_url($back_url) . '">' . esc_html__('Back to waitlist', 'waitpress') . '</a></p>';
+
+        if (!$applicant) {
+            echo '<p>' . esc_html__('Applicant not found.', 'waitpress') . '</p>';
+            echo '</div>';
+            return;
+        }
+
+        echo '<table class="widefat striped"><tbody>';
+        echo '<tr><th>' . esc_html__('Name', 'waitpress') . '</th><td>' . esc_html($applicant->name) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Email', 'waitpress') . '</th><td>' . esc_html($applicant->email) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Phone', 'waitpress') . '</th><td>' . esc_html($applicant->phone) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Address', 'waitpress') . '</th><td>' . esc_html($applicant->address) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Status', 'waitpress') . '</th><td>' . esc_html($this->format_status_label($applicant->status)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Joined', 'waitpress') . '</th><td>' . esc_html(mysql2date(get_option('date_format'), $applicant->joined_at)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Updated', 'waitpress') . '</th><td>' . esc_html(mysql2date(get_option('date_format'), $applicant->updated_at)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Comments/Notes', 'waitpress') . '</th><td>' . nl2br(esc_html($applicant->comments)) . '</td></tr>';
         echo '</tbody></table>';
         echo '</div>';
     }
@@ -1144,8 +1198,18 @@ class Waitpress_Plugin {
     }
 
     private function send_email($to, $subject, $body) {
-        if (empty($to)) {
-            return;
+        if (is_array($to)) {
+            $to = array_filter(array_unique(array_map('sanitize_email', $to)));
+            if (!$to) {
+                return;
+            }
+            $to = implode(',', $to);
+        } else {
+            $to = trim((string) $to);
+            if ($to === '') {
+                return;
+            }
+
         }
 
         $headers = array('Content-Type: text/html; charset=UTF-8');
@@ -1162,7 +1226,7 @@ class Waitpress_Plugin {
     }
 
     private function parse_recipient_list($value) {
-        $entries = preg_split('/[\s,]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
+        $entries = preg_split('/[\s,;]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
         if (!$entries) {
             return array();
         }
