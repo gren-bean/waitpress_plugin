@@ -313,10 +313,14 @@ class Waitpress_Plugin {
 
         $messages = $this->get_flash_messages();
         $applicants = $this->get_applicants();
+        $open_offers = $this->get_open_offer_count();
+        $waiting_count = $this->get_waiting_applicant_count();
         $offer_url = admin_url('admin-post.php');
 
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__('Garden Waitlist', 'waitpress') . '</h1>';
+        echo '<p><strong>' . esc_html__('Open offers:', 'waitpress') . '</strong> ' . esc_html($open_offers) . ' | ';
+        echo '<strong>' . esc_html__('Applicants waiting:', 'waitpress') . '</strong> ' . esc_html($waiting_count) . '</p>';
         if ($messages) {
             foreach ($messages as $message) {
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
@@ -1238,6 +1242,20 @@ class Waitpress_Plugin {
         $table = $this->get_table_name('applicants');
 
         return $wpdb->get_results("SELECT * FROM {$table} WHERE status = 'waiting' ORDER BY joined_at ASC, id ASC");
+    }
+
+    private function get_waiting_applicant_count() {
+        global $wpdb;
+        $table = $this->get_table_name('applicants');
+
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'waiting'");
+    }
+
+    private function get_open_offer_count() {
+        global $wpdb;
+        $table = $this->get_table_name('offers');
+
+        return (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'pending'");
     }
 
     private function get_applicants() {
