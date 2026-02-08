@@ -34,6 +34,7 @@ class Waitpress_Plugin {
 
         add_action('admin_post_waitpress_offer_next', array($this, 'handle_offer_next'));
         add_action('admin_post_waitpress_remove_applicant', array($this, 'handle_remove_applicant'));
+        add_action('admin_post_waitpress_clear_waitlist', array($this, 'handle_clear_waitlist'));
 
         add_action('waitpress_daily_offer_expiry', array($this, 'run_daily_offer_expiry'));
         add_action('waitpress_monthly_status_email', array($this, 'send_monthly_status_emails'));
@@ -310,15 +311,29 @@ class Waitpress_Plugin {
         }
 
 
+        $messages = $this->get_flash_messages();
         $applicants = $this->get_applicants();
         $offer_url = admin_url('admin-post.php');
 
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__('Garden Waitlist', 'waitpress') . '</h1>';
+        if ($messages) {
+            foreach ($messages as $message) {
+                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+            }
+        }
         echo '<form method="post" action="' . esc_url($offer_url) . '">';
         echo wp_nonce_field('waitpress_offer_next', '_waitpress_nonce', true, false);
         echo '<input type="hidden" name="action" value="waitpress_offer_next">';
         echo '<p><button class="button button-primary" type="submit">' . esc_html__('Offer next eligible', 'waitpress') . '</button></p>';
+        echo '</form>';
+        echo '<form method="post" action="' . esc_url($offer_url) . '">';
+        echo wp_nonce_field('waitpress_clear_waitlist', '_waitpress_nonce', true, false);
+        echo '<input type="hidden" name="action" value="waitpress_clear_waitlist">';
+        echo '<label>' . esc_html__('Keep most recent', 'waitpress') . ' ';
+        echo '<input type="number" name="waitpress_keep_recent" min="0" value="0" class="small-text"> ';
+        echo esc_html__('applicants', 'waitpress') . '</label> ';
+        echo '<button class="button button-secondary" type="submit" onclick="return confirm(\'' . esc_js(__('This will delete older applicants. Continue?', 'waitpress')) . '\');">' . esc_html__('Clear waitlist', 'waitpress') . '</button>';
         echo '</form>';
 
         echo '<table class="widefat striped">';
@@ -521,6 +536,55 @@ class Waitpress_Plugin {
             sprintf(__('Applicant %s was removed from the waitlist.', 'waitpress'), $applicant->name)
         );
         $this->set_flash_message(__('Applicant removed from the waitlist.', 'waitpress'));
+
+        wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+        exit;
+    }
+
+    public function handle_clear_waitlist() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'waitpress'));
+        }
+
+        check_admin_referer('waitpress_clear_waitlist', '_waitpress_nonce');
+
+        $keep_count = isset($_POST['waitpress_keep_recent']) ? absint(wp_unslash($_POST['waitpress_keep_recent'])) : 0;
+
+        global $wpdb;
+        $applicants_table = $this->get_table_name('applicants');
+        $offers_table = $this->get_table_name('offers');
+
+        $ids_to_keep = array();
+        if ($keep_count > 0) {
+            $ids_to_keep = $wpdb->get_col($wpdb->prepare(
+                "SELECT id FROM {$applicants_table} ORDER BY updated_at DESC, id DESC LIMIT %d",
+                $keep_count
+            ));
+        }
+
+        if ($ids_to_keep) {
+            $placeholders = implode(',', array_fill(0, count($ids_to_keep), '%d'));
+            $removed_applicants = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$applicants_table} WHERE id NOT IN ({$placeholders})",
+                $ids_to_keep
+            ));
+            $removed_offers = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$offers_table} WHERE applicant_id NOT IN ({$placeholders})",
+                $ids_to_keep
+            ));
+        } else {
+            $removed_applicants = $wpdb->query("DELETE FROM {$applicants_table}");
+            $removed_offers = $wpdb->query("DELETE FROM {$offers_table}");
+        }
+
+        $removed_applicants = is_numeric($removed_applicants) ? (int) $removed_applicants : 0;
+        $removed_offers = is_numeric($removed_offers) ? (int) $removed_offers : 0;
+
+        $this->set_flash_message(sprintf(
+            __('Removed %1$d applicants and %2$d offers from the waitlist.', 'waitpress'),
+            $removed_applicants,
+            $removed_offers
+        ));
 
         wp_safe_redirect(admin_url('admin.php?page=waitpress'));
         exit;
