@@ -1180,7 +1180,22 @@ class Waitpress_Plugin {
         global $wpdb;
         $table = $this->get_table_name('applicants');
 
-        return $wpdb->get_results("SELECT * FROM {$table} ORDER BY joined_at DESC LIMIT 100");
+        return $wpdb->get_results(
+            "SELECT * FROM {$table}
+            ORDER BY
+                CASE
+                    WHEN status = 'offered' THEN 0
+                    WHEN status = 'waiting' THEN 1
+                    ELSE 2
+                END,
+                CASE WHEN status = 'offered' THEN updated_at END ASC,
+                CASE WHEN status = 'offered' THEN id END ASC,
+                CASE WHEN status = 'waiting' THEN joined_at END ASC,
+                CASE WHEN status = 'waiting' THEN id END ASC,
+                CASE WHEN status NOT IN ('offered', 'waiting') THEN updated_at END DESC,
+                CASE WHEN status NOT IN ('offered', 'waiting') THEN id END DESC
+            LIMIT 100"
+        );
     }
 
     private function get_waitlist_position($applicant) {
