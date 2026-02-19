@@ -35,6 +35,7 @@ class Waitpress_Plugin {
         add_action('admin_post_waitpress_offer_next', array($this, 'handle_offer_next'));
         add_action('admin_post_waitpress_remove_applicant', array($this, 'handle_remove_applicant'));
         add_action('admin_post_waitpress_clear_waitlist', array($this, 'handle_clear_waitlist'));
+        add_action('admin_post_waitpress_add_applicant', array($this, 'handle_add_applicant'));
 
         add_action('waitpress_daily_offer_expiry', array($this, 'run_daily_offer_expiry'));
         add_action('waitpress_monthly_status_email', array($this, 'send_monthly_status_emails'));
@@ -326,6 +327,7 @@ class Waitpress_Plugin {
                 echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
             }
         }
+        $this->render_admin_add_form();
         echo '<form method="post" action="' . esc_url($offer_url) . '">';
         echo wp_nonce_field('waitpress_offer_next', '_waitpress_nonce', true, false);
         echo '<input type="hidden" name="action" value="waitpress_offer_next">';
@@ -392,6 +394,32 @@ class Waitpress_Plugin {
 
         echo '</tbody></table>';
         echo '</div>';
+    }
+
+    private function render_admin_add_form() {
+        $action_url = admin_url('admin-post.php');
+
+        echo '<h2>' . esc_html__('Add applicant', 'waitpress') . '</h2>';
+        echo '<form method="post" action="' . esc_url($action_url) . '">';
+        echo wp_nonce_field('waitpress_add_applicant', '_waitpress_nonce', true, false);
+        echo '<input type="hidden" name="action" value="waitpress_add_applicant">';
+        echo '<table class="form-table"><tbody>';
+        echo '<tr><th scope="row"><label for="waitpress_first_name">' . esc_html__('First name', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_first_name" name="waitpress_first_name" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_last_name">' . esc_html__('Last name', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_last_name" name="waitpress_last_name" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_email">' . esc_html__('Email', 'waitpress') . '</label></th><td><input type="email" class="regular-text" id="waitpress_email" name="waitpress_email" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_phone">' . esc_html__('Phone', 'waitpress') . '</label></th><td><input type="tel" class="regular-text" id="waitpress_phone" name="waitpress_phone" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_address">' . esc_html__('Street address', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_address" name="waitpress_address" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_city">' . esc_html__('City', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_city" name="waitpress_city" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_state">' . esc_html__('State', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_state" name="waitpress_state" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_zip">' . esc_html__('Zip code', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_zip" name="waitpress_zip" required></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_plot_number">' . esc_html__('Garden or Plot Preference', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_plot_number" name="waitpress_plot_number"></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_emergency_name">' . esc_html__('Emergency contact name', 'waitpress') . '</label></th><td><input type="text" class="regular-text" id="waitpress_emergency_name" name="waitpress_emergency_name"></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_emergency_phone">' . esc_html__('Emergency contact phone', 'waitpress') . '</label></th><td><input type="tel" class="regular-text" id="waitpress_emergency_phone" name="waitpress_emergency_phone"></td></tr>';
+        echo '<tr><th scope="row"><label for="waitpress_comments">' . esc_html__('Additional notes', 'waitpress') . '</label></th><td><textarea class="large-text" rows="3" id="waitpress_comments" name="waitpress_comments"></textarea></td></tr>';
+        echo '<tr><th scope="row">' . esc_html__('Notifications', 'waitpress') . '</th><td><label><input type="checkbox" name="waitpress_send_email" value="1" checked> ' . esc_html__('Send confirmation email with status link', 'waitpress') . '</label><p class="description">' . esc_html__('Admin recipients configured in settings are always notified when an applicant is added.', 'waitpress') . '</p></td></tr>';
+        echo '</tbody></table>';
+        submit_button(__('Add applicant', 'waitpress'));
+        echo '</form>';
     }
 
     public function render_applicant_detail($id) {
@@ -489,6 +517,103 @@ class Waitpress_Plugin {
         check_admin_referer('waitpress_offer_next', '_waitpress_nonce');
         $this->offer_next_applicant();
 
+        wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+        exit;
+    }
+
+    public function handle_add_applicant() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'waitpress'));
+        }
+
+        check_admin_referer('waitpress_add_applicant', '_waitpress_nonce');
+
+        $first_name = sanitize_text_field(wp_unslash($_POST['waitpress_first_name'] ?? ''));
+        $last_name = sanitize_text_field(wp_unslash($_POST['waitpress_last_name'] ?? ''));
+        $email = sanitize_email(wp_unslash($_POST['waitpress_email'] ?? ''));
+        $phone = sanitize_text_field(wp_unslash($_POST['waitpress_phone'] ?? ''));
+        $address = sanitize_text_field(wp_unslash($_POST['waitpress_address'] ?? ''));
+        $city = sanitize_text_field(wp_unslash($_POST['waitpress_city'] ?? ''));
+        $state = sanitize_text_field(wp_unslash($_POST['waitpress_state'] ?? ''));
+        $zip = sanitize_text_field(wp_unslash($_POST['waitpress_zip'] ?? ''));
+        $plot_number = sanitize_text_field(wp_unslash($_POST['waitpress_plot_number'] ?? ''));
+        $emergency_name = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_name'] ?? ''));
+        $emergency_phone = sanitize_text_field(wp_unslash($_POST['waitpress_emergency_phone'] ?? ''));
+        $comments = sanitize_textarea_field(wp_unslash($_POST['waitpress_comments'] ?? ''));
+        $send_email = !empty($_POST['waitpress_send_email']);
+
+        if (!$first_name || !$last_name || !$email || !$phone || !$address || !$city || !$state || !$zip) {
+            $this->set_flash_message(__('Please complete all required fields.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+            exit;
+        }
+
+        $existing_applicant = $this->get_active_applicant_by_email($email);
+        if ($existing_applicant) {
+            $status_label = $this->format_status_label($existing_applicant->status);
+            $message = sprintf(__('Applicant already exists. Current status: %s.', 'waitpress'), $status_label);
+            if ($existing_applicant->status === 'waiting') {
+                $position = $this->get_waitlist_position($existing_applicant);
+                $message = sprintf(__('Applicant already exists. Current status: %s. Position: %d.', 'waitpress'), $status_label, $position);
+            }
+            $this->set_flash_message($message);
+            wp_safe_redirect(admin_url('admin.php?page=waitpress'));
+            exit;
+        }
+
+        $name = trim($first_name . ' ' . $last_name);
+        $address_lines = array_filter(array($address, trim($city . ', ' . $state . ' ' . $zip)));
+        $address = implode("\n", $address_lines);
+
+        $extra_notes = array();
+        if ($plot_number) {
+            $extra_notes[] = sprintf('Plot number: %s', $plot_number);
+        }
+        if ($emergency_name || $emergency_phone) {
+            $emergency_details = trim($emergency_name . ' ' . $emergency_phone);
+            $extra_notes[] = sprintf('Emergency contact: %s', $emergency_details);
+        }
+        if ($extra_notes) {
+            $comments = trim(implode("\n", $extra_notes) . "\n" . $comments);
+        }
+
+        $token = $this->generate_token();
+        $now = current_time('mysql');
+
+        $this->insert_applicant(array(
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'address' => $address,
+            'comments' => $comments,
+            'status' => 'waiting',
+            'joined_at' => $now,
+            'updated_at' => $now,
+            'magic_token' => $token,
+            'magic_token_expires' => gmdate('Y-m-d H:i:s', strtotime('+30 days')),
+        ));
+
+        if ($send_email) {
+            $status_url = add_query_arg('token', $token, $this->get_status_page_url());
+            $subject = __('Waitlist confirmation', 'waitpress');
+            $body = $this->interpolate_template(
+                $this->get_settings()['template_applicant_confirmation'],
+                array(
+                    'status_link' => $status_url,
+                    'applicant_name' => $name,
+                )
+            );
+
+            $this->send_email($email, $subject, $body);
+        }
+
+        $this->send_email(
+            $this->get_notification_recipients('notification_join_recipients'),
+            __('New waitlist application', 'waitpress'),
+            sprintf(__('New applicant: %s', 'waitpress'), $name)
+        );
+
+        $this->set_flash_message(__('Applicant added successfully.', 'waitpress'));
         wp_safe_redirect(admin_url('admin.php?page=waitpress'));
         exit;
     }
