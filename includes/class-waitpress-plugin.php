@@ -35,6 +35,7 @@ class Waitpress_Plugin {
         add_action('admin_post_waitpress_offer_next', array($this, 'handle_offer_next'));
         add_action('admin_post_waitpress_remove_applicant', array($this, 'handle_remove_applicant'));
         add_action('admin_post_waitpress_clear_waitlist', array($this, 'handle_clear_waitlist'));
+        add_action('admin_post_waitpress_update_plot_change', array($this, 'handle_update_plot_change'));
 
         add_action('waitpress_daily_offer_expiry', array($this, 'run_daily_offer_expiry'));
         add_action('waitpress_monthly_status_email', array($this, 'send_monthly_status_emails'));
@@ -60,6 +61,7 @@ class Waitpress_Plugin {
     public function register_shortcodes() {
         add_shortcode('waitpress_apply_form', array($this, 'render_apply_form'));
         add_shortcode('waitpress_status', array($this, 'render_status_page'));
+        add_shortcode('waitpress_plot_change_form', array($this, 'render_plot_change_form'));
     }
 
     public function enqueue_assets() {
@@ -80,6 +82,15 @@ class Waitpress_Plugin {
             array($this, 'render_admin_dashboard'),
             'dashicons-list-view',
             56
+        );
+
+        add_submenu_page(
+            'waitpress',
+            __('Plot Change Requests', 'waitpress'),
+            __('Plot Change Requests', 'waitpress'),
+            'manage_options',
+            'waitpress-plot-changes',
+            array($this, 'render_plot_change_requests')
         );
 
         add_submenu_page(
@@ -183,6 +194,38 @@ class Waitpress_Plugin {
             'waitpress-settings',
             'waitpress_general'
         );
+
+        add_settings_field(
+            'template_plot_change_confirmation',
+            __('Plot change confirmation email', 'waitpress'),
+            array($this, 'render_template_plot_change_confirmation_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_plot_change_admin',
+            __('Plot change admin notification email', 'waitpress'),
+            array($this, 'render_template_plot_change_admin_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'template_plot_change_status',
+            __('Plot change status update email', 'waitpress'),
+            array($this, 'render_template_plot_change_status_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
+
+        add_settings_field(
+            'notification_plot_change_recipients',
+            __('Additional recipients: plot change requests', 'waitpress'),
+            array($this, 'render_plot_change_recipients_field'),
+            'waitpress-settings',
+            'waitpress_general'
+        );
     }
 
     public function render_apply_form() {
@@ -219,6 +262,39 @@ class Waitpress_Plugin {
         $html .= '</div>';
         $html .= '<p><label><input type="checkbox" name="waitpress_bylaws_cert" required> ' . esc_html__('I certify I have read and shall abide by the GCGC Bylaws', 'waitpress') . '</label></p>';
         $html .= '<p><button type="submit">' . esc_html__('Join Waitlist', 'waitpress') . '</button></p>';
+        $html .= '</form>';
+
+        return $html;
+    }
+
+    public function render_plot_change_form() {
+        $messages = $this->get_flash_messages();
+        $hide_form = $this->get_flash_flag('hide_plot_change_form');
+        $html = '';
+
+        if ($messages) {
+            foreach ($messages as $message) {
+                $html .= '<div class="waitpress-message">' . esc_html($message) . '</div>';
+            }
+        }
+
+        if ($hide_form) {
+            return $html;
+        }
+
+        $html .= '<form class="waitpress-plot-change-form" method="post">';
+        $html .= wp_nonce_field('waitpress_plot_change', '_waitpress_nonce', true, false);
+        $html .= '<input type="hidden" name="waitpress_action" value="plot_change_request">';
+        $html .= '<div class="waitpress-form-grid">';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('First name (required)', 'waitpress') . '<br><input type="text" name="waitpress_first_name" required></label></p>';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('Last name (required)', 'waitpress') . '<br><input type="text" name="waitpress_last_name" required></label></p>';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('Email (required)', 'waitpress') . '<br><input type="email" name="waitpress_email" required></label></p>';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('Phone (required)', 'waitpress') . '<br><input type="tel" name="waitpress_phone" required></label></p>';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('Current plot (required)', 'waitpress') . '<br><input type="text" name="waitpress_current_plot" required></label></p>';
+        $html .= '<p class="waitpress-form-field"><label>' . esc_html__('Requested change (required)', 'waitpress') . '<br><input type="text" name="waitpress_requested_change" required></label></p>';
+        $html .= '<p class="waitpress-form-field waitpress-form-field--full"><label>' . esc_html__('Additional details (optional)', 'waitpress') . '<br><textarea name="waitpress_comments"></textarea></label></p>';
+        $html .= '</div>';
+        $html .= '<p><button type="submit">' . esc_html__('Submit plot change request', 'waitpress') . '</button></p>';
         $html .= '</form>';
 
         return $html;
@@ -394,6 +470,119 @@ class Waitpress_Plugin {
         echo '</div>';
     }
 
+    public function render_plot_change_requests() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $view_id = isset($_GET['view_plot_change']) ? absint(wp_unslash($_GET['view_plot_change'])) : 0;
+        if ($view_id) {
+            $this->render_plot_change_detail($view_id);
+            return;
+        }
+
+        $messages = $this->get_flash_messages();
+        $requests = $this->get_plot_change_requests();
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__('Plot Change Requests', 'waitpress') . '</h1>';
+
+        if ($messages) {
+            foreach ($messages as $message) {
+                echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
+            }
+        }
+
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th>' . esc_html__('#', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Name', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Email', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Current plot', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Requested change', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Status', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Submitted', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Updated', 'waitpress') . '</th>';
+        echo '<th>' . esc_html__('Actions', 'waitpress') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        if ($requests) {
+            foreach ($requests as $request) {
+                $view_url = add_query_arg(
+                    array(
+                        'page' => 'waitpress-plot-changes',
+                        'view_plot_change' => $request->id,
+                    ),
+                    admin_url('admin.php')
+                );
+
+                echo '<tr>';
+                echo '<td>' . esc_html($request->id) . '</td>';
+                echo '<td>' . esc_html($request->name) . '</td>';
+                echo '<td>' . esc_html($request->email) . '</td>';
+                echo '<td>' . esc_html($request->current_plot) . '</td>';
+                echo '<td>' . esc_html($request->requested_change) . '</td>';
+                echo '<td>' . esc_html($this->format_plot_change_status($request->status)) . '</td>';
+                echo '<td>' . esc_html(mysql2date(get_option('date_format'), $request->created_at)) . '</td>';
+                echo '<td>' . esc_html(mysql2date(get_option('date_format'), $request->updated_at)) . '</td>';
+                echo '<td><a class="button button-secondary" href="' . esc_url($view_url) . '">' . esc_html__('View', 'waitpress') . '</a></td>';
+                echo '</tr>';
+            }
+        } else {
+            echo '<tr><td colspan="9">' . esc_html__('No plot change requests yet.', 'waitpress') . '</td></tr>';
+        }
+
+        echo '</tbody></table>';
+        echo '</div>';
+    }
+
+    public function render_plot_change_detail($id) {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        $request = $this->get_plot_change_request($id);
+        $back_url = admin_url('admin.php?page=waitpress-plot-changes');
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__('Plot Change Request', 'waitpress') . '</h1>';
+        echo '<p><a class="button" href="' . esc_url($back_url) . '">' . esc_html__('Back to requests', 'waitpress') . '</a></p>';
+
+        if (!$request) {
+            echo '<p>' . esc_html__('Request not found.', 'waitpress') . '</p>';
+            echo '</div>';
+            return;
+        }
+
+        echo '<table class="widefat striped"><tbody>';
+        echo '<tr><th>' . esc_html__('Name', 'waitpress') . '</th><td>' . esc_html($request->name) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Email', 'waitpress') . '</th><td>' . esc_html($request->email) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Phone', 'waitpress') . '</th><td>' . esc_html($request->phone) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Current plot', 'waitpress') . '</th><td>' . esc_html($request->current_plot) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Requested change', 'waitpress') . '</th><td>' . esc_html($request->requested_change) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Notes', 'waitpress') . '</th><td>' . nl2br(esc_html($request->notes)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Status', 'waitpress') . '</th><td>' . esc_html($this->format_plot_change_status($request->status)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Submitted', 'waitpress') . '</th><td>' . esc_html(mysql2date(get_option('date_format'), $request->created_at)) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Updated', 'waitpress') . '</th><td>' . esc_html(mysql2date(get_option('date_format'), $request->updated_at)) . '</td></tr>';
+        echo '</tbody></table>';
+
+        $statuses = $this->get_plot_change_statuses();
+        echo '<h2>' . esc_html__('Update status', 'waitpress') . '</h2>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo wp_nonce_field('waitpress_update_plot_change', '_waitpress_nonce', true, false);
+        echo '<input type="hidden" name="action" value="waitpress_update_plot_change">';
+        echo '<input type="hidden" name="request_id" value="' . esc_attr($request->id) . '">';
+        echo '<select name="request_status">';
+        foreach ($statuses as $status_key => $label) {
+            $selected = selected($request->status, $status_key, false);
+            echo '<option value="' . esc_attr($status_key) . '"' . $selected . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select> ';
+        echo '<button class="button button-primary" type="submit">' . esc_html__('Save status', 'waitpress') . '</button>';
+        echo '</form>';
+        echo '</div>';
+    }
+
     public function render_applicant_detail($id) {
         if (!current_user_can('manage_options')) {
             return;
@@ -457,6 +646,10 @@ class Waitpress_Plugin {
 
         if ($action === 'leave') {
             $this->handle_leave_waitlist();
+        }
+
+        if ($action === 'plot_change_request') {
+            $this->handle_plot_change_submission();
         }
     }
 
@@ -594,6 +787,59 @@ class Waitpress_Plugin {
         exit;
     }
 
+    public function handle_update_plot_change() {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('Unauthorized', 'waitpress'));
+        }
+
+        check_admin_referer('waitpress_update_plot_change', '_waitpress_nonce');
+
+        $request_id = isset($_POST['request_id']) ? absint(wp_unslash($_POST['request_id'])) : 0;
+        $status = isset($_POST['request_status']) ? sanitize_text_field(wp_unslash($_POST['request_status'])) : '';
+        $statuses = $this->get_plot_change_statuses();
+
+        if (!$request_id || !isset($statuses[$status])) {
+            $this->set_flash_message(__('Invalid request update.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress-plot-changes'));
+            exit;
+        }
+
+        $request = $this->get_plot_change_request($request_id);
+        if (!$request) {
+            $this->set_flash_message(__('Request not found.', 'waitpress'));
+            wp_safe_redirect(admin_url('admin.php?page=waitpress-plot-changes'));
+            exit;
+        }
+
+        $this->update_plot_change_request($request_id, array(
+            'status' => $status,
+            'updated_at' => current_time('mysql'),
+        ));
+
+        $body = $this->interpolate_template(
+            $this->get_settings()['template_plot_change_status'],
+            array(
+                'name' => $request->name,
+                'email' => $request->email,
+                'current_plot' => $request->current_plot,
+                'requested_change' => $request->requested_change,
+                'notes' => $request->notes,
+                'status' => $this->format_plot_change_status($status),
+            )
+        );
+
+        $this->send_email($request->email, __('Plot change request update', 'waitpress'), $body);
+        $this->send_email(
+            $this->get_notification_recipients('notification_plot_change_recipients'),
+            __('Plot change request updated', 'waitpress'),
+            sprintf(__('Plot change request for %s is now %s.', 'waitpress'), $request->name, $this->format_plot_change_status($status))
+        );
+
+        $this->set_flash_message(__('Plot change request updated.', 'waitpress'));
+        wp_safe_redirect(admin_url('admin.php?page=waitpress-plot-changes&view_plot_change=' . $request_id));
+        exit;
+    }
+
     public function run_daily_offer_expiry() {
         $this->expire_offers();
     }
@@ -624,6 +870,10 @@ class Waitpress_Plugin {
         $settings['notification_join_recipients'] = isset($settings['notification_join_recipients']) ? sanitize_textarea_field($settings['notification_join_recipients']) : '';
         $settings['notification_leave_recipients'] = isset($settings['notification_leave_recipients']) ? sanitize_textarea_field($settings['notification_leave_recipients']) : '';
         $settings['notification_accept_recipients'] = isset($settings['notification_accept_recipients']) ? sanitize_textarea_field($settings['notification_accept_recipients']) : '';
+        $settings['template_plot_change_confirmation'] = isset($settings['template_plot_change_confirmation']) ? sanitize_textarea_field($settings['template_plot_change_confirmation']) : '';
+        $settings['template_plot_change_admin'] = isset($settings['template_plot_change_admin']) ? sanitize_textarea_field($settings['template_plot_change_admin']) : '';
+        $settings['template_plot_change_status'] = isset($settings['template_plot_change_status']) ? sanitize_textarea_field($settings['template_plot_change_status']) : '';
+        $settings['notification_plot_change_recipients'] = isset($settings['notification_plot_change_recipients']) ? sanitize_textarea_field($settings['notification_plot_change_recipients']) : '';
 
         return $settings;
     }
@@ -691,6 +941,18 @@ class Waitpress_Plugin {
         $this->render_template_field('template_offer');
     }
 
+    public function render_template_plot_change_confirmation_field() {
+        $this->render_template_field('template_plot_change_confirmation', 4, 50);
+    }
+
+    public function render_template_plot_change_admin_field() {
+        $this->render_template_field('template_plot_change_admin', 4, 50);
+    }
+
+    public function render_template_plot_change_status_field() {
+        $this->render_template_field('template_plot_change_status', 4, 50);
+    }
+
     private function render_notification_recipients_field($setting_key) {
         $settings = $this->get_settings();
         printf(
@@ -711,6 +973,10 @@ class Waitpress_Plugin {
 
     public function render_accept_recipients_field() {
         $this->render_notification_recipients_field('notification_accept_recipients');
+    }
+
+    public function render_plot_change_recipients_field() {
+        $this->render_notification_recipients_field('notification_plot_change_recipients');
     }
 
     private function handle_apply_submission() {
@@ -808,6 +1074,83 @@ class Waitpress_Plugin {
 
         $this->set_flash_message(__('You are on the list! Check your email for your status link.', 'waitpress'));
         $this->set_flash_flag('hide_apply_form');
+        wp_safe_redirect($this->get_current_url());
+        exit;
+    }
+
+    private function handle_plot_change_submission() {
+        if (!isset($_POST['_waitpress_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_waitpress_nonce'])), 'waitpress_plot_change')) {
+            return;
+        }
+
+        $first_name = sanitize_text_field(wp_unslash($_POST['waitpress_first_name'] ?? ''));
+        $last_name = sanitize_text_field(wp_unslash($_POST['waitpress_last_name'] ?? ''));
+        $email = sanitize_email(wp_unslash($_POST['waitpress_email'] ?? ''));
+        $phone = sanitize_text_field(wp_unslash($_POST['waitpress_phone'] ?? ''));
+        $current_plot = sanitize_text_field(wp_unslash($_POST['waitpress_current_plot'] ?? ''));
+        $requested_change = sanitize_text_field(wp_unslash($_POST['waitpress_requested_change'] ?? ''));
+        $notes = sanitize_textarea_field(wp_unslash($_POST['waitpress_comments'] ?? ''));
+
+        if (!$first_name || !$last_name || !$email || !$phone || !$current_plot || !$requested_change) {
+            $this->set_flash_message(__('Please complete all required fields.', 'waitpress'));
+            return;
+        }
+
+        $name = trim($first_name . ' ' . $last_name);
+        $now = current_time('mysql');
+
+        $request_id = $this->insert_plot_change_request(array(
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'current_plot' => $current_plot,
+            'requested_change' => $requested_change,
+            'notes' => $notes,
+            'status' => 'new',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ));
+
+        if (!$request_id) {
+            $this->set_flash_message(__('Unable to submit your request. Please try again later.', 'waitpress'));
+            return;
+        }
+
+        $settings = $this->get_settings();
+        $confirmation = $this->interpolate_template(
+            $settings['template_plot_change_confirmation'],
+            array(
+                'name' => $name,
+                'email' => $email,
+                'current_plot' => $current_plot,
+                'requested_change' => $requested_change,
+                'notes' => $notes,
+                'status' => $this->format_plot_change_status('new'),
+            )
+        );
+
+        $admin_notice = $this->interpolate_template(
+            $settings['template_plot_change_admin'],
+            array(
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'current_plot' => $current_plot,
+                'requested_change' => $requested_change,
+                'notes' => $notes,
+                'status' => $this->format_plot_change_status('new'),
+            )
+        );
+
+        $this->send_email($email, __('Plot change request received', 'waitpress'), $confirmation);
+        $this->send_email(
+            $this->get_notification_recipients('notification_plot_change_recipients'),
+            __('New plot change request', 'waitpress'),
+            $admin_notice
+        );
+
+        $this->set_flash_message(__('Your plot change request has been submitted.', 'waitpress'));
+        $this->set_flash_flag('hide_plot_change_form');
         wp_safe_redirect($this->get_current_url());
         exit;
     }
@@ -938,6 +1281,7 @@ class Waitpress_Plugin {
         $applicants = $this->get_table_name('applicants');
         $offers = $this->get_table_name('offers');
         $plots = $this->get_table_name('plots');
+        $plot_changes = $this->get_table_name('plot_change_requests');
 
         $sql = "
         CREATE TABLE {$applicants} (
@@ -979,6 +1323,22 @@ class Waitpress_Plugin {
             available TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY  (id)
         ) {$charset};
+
+        CREATE TABLE {$plot_changes} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(190) NOT NULL,
+            email VARCHAR(190) NOT NULL,
+            phone VARCHAR(50) NOT NULL,
+            current_plot VARCHAR(190) NOT NULL,
+            requested_change VARCHAR(190) NOT NULL,
+            notes TEXT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'new',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            KEY status (status),
+            KEY email (email)
+        ) {$charset};
         ";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -998,6 +1358,10 @@ class Waitpress_Plugin {
                 'notification_join_recipients' => '',
                 'notification_leave_recipients' => '',
                 'notification_accept_recipients' => '',
+                'template_plot_change_confirmation' => 'Thanks for your plot change request. We will review it and follow up.',
+                'template_plot_change_admin' => 'New plot change request from {{name}} ({{email}}). Current plot: {{current_plot}}. Request: {{requested_change}}. Notes: {{notes}}.',
+                'template_plot_change_status' => 'Your plot change request status is now {{status}}.',
+                'notification_plot_change_recipients' => '',
             ));
         }
     }
@@ -1005,9 +1369,11 @@ class Waitpress_Plugin {
     private function ensure_pages() {
         $apply_id = $this->ensure_page('waitpress-apply', __('Apply to the Waitlist', 'waitpress'), '[waitpress_apply_form]');
         $status_id = $this->ensure_page('waitpress-status', __('Waitlist Status', 'waitpress'), '[waitpress_status]');
+        $plot_change_id = $this->ensure_page('waitpress-plot-change', __('Plot Change Request', 'waitpress'), '[waitpress_plot_change_form]');
 
         update_option('waitpress_apply_page_id', $apply_id);
         update_option('waitpress_status_page_id', $status_id);
+        update_option('waitpress_plot_change_page_id', $plot_change_id);
     }
 
     private function schedule_events() {
@@ -1138,6 +1504,10 @@ class Waitpress_Plugin {
             'notification_join_recipients' => '',
             'notification_leave_recipients' => '',
             'notification_accept_recipients' => '',
+            'template_plot_change_confirmation' => '',
+            'template_plot_change_admin' => '',
+            'template_plot_change_status' => '',
+            'notification_plot_change_recipients' => '',
         );
 
         return wp_parse_args(get_option('waitpress_settings', array()), $defaults);
@@ -1278,6 +1648,53 @@ class Waitpress_Plugin {
                 CASE WHEN status NOT IN ('offered', 'waiting') THEN id END DESC
             LIMIT 100"
         );
+    }
+
+    private function get_plot_change_requests() {
+        global $wpdb;
+        $table = $this->get_table_name('plot_change_requests');
+
+        return $wpdb->get_results(
+            "SELECT * FROM {$table}
+            ORDER BY
+                CASE
+                    WHEN status = 'new' THEN 0
+                    WHEN status = 'in_review' THEN 1
+                    ELSE 2
+                END,
+                updated_at DESC,
+                id DESC
+            LIMIT 200"
+        );
+    }
+
+    private function get_plot_change_request($request_id) {
+        global $wpdb;
+        $table = $this->get_table_name('plot_change_requests');
+
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE id = %d",
+            $request_id
+        ));
+    }
+
+    private function insert_plot_change_request($data) {
+        global $wpdb;
+        $table = $this->get_table_name('plot_change_requests');
+        $inserted = $wpdb->insert($table, $data);
+
+        if (!$inserted) {
+            return false;
+        }
+
+        return (int) $wpdb->insert_id;
+    }
+
+    private function update_plot_change_request($request_id, $data) {
+        global $wpdb;
+        $table = $this->get_table_name('plot_change_requests');
+
+        return $wpdb->update($table, $data, array('id' => $request_id));
     }
 
     private function get_waitlist_position($applicant) {
@@ -1425,6 +1842,22 @@ class Waitpress_Plugin {
             'declined' => __('Declined', 'waitpress'),
             'expired' => __('Expired', 'waitpress'),
         );
+
+        return $labels[$status] ?? $status;
+    }
+
+    private function get_plot_change_statuses() {
+        return array(
+            'new' => __('New', 'waitpress'),
+            'in_review' => __('In Review', 'waitpress'),
+            'approved' => __('Approved', 'waitpress'),
+            'declined' => __('Declined', 'waitpress'),
+            'completed' => __('Completed', 'waitpress'),
+        );
+    }
+
+    private function format_plot_change_status($status) {
+        $labels = $this->get_plot_change_statuses();
 
         return $labels[$status] ?? $status;
     }
