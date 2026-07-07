@@ -1323,12 +1323,13 @@ class Waitpress_Plugin {
     }
 
     private function parse_recipient_list($value) {
-        $entries = preg_split('/[\s,;]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY);
-        if (!$entries) {
+        $matches = array();
+        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', (string) $value, $matches);
+        if (empty($matches[0])) {
             return array();
         }
 
-        return array_values(array_filter($entries));
+        return array_values(array_filter($matches[0]));
     }
 
     private function generate_token() {
